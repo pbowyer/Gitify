@@ -3,12 +3,14 @@ namespace modmore\Gitify\Command;
 
 use modmore\Gitify\BaseCommand;
 use modmore\Gitify\Gitify;
+use modmore\Gitify\UuidToObjectMapper;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Yaml\Exception\ParseException;
 
 /**
@@ -27,6 +29,8 @@ class BuildCommand extends BaseCommand
     public $updatedObjects;
     public $orphanedObjects;
     protected $_metaCache = array();
+    /** @var UuidToObjectMapper */
+    protected $mapper;
 
     protected function configure()
     {
@@ -79,6 +83,8 @@ class BuildCommand extends BaseCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $this->mapper = new UuidToObjectMapper();
+
         $this->isForce = $input->getOption('force');
         if ($this->isForce && !$input->getOption('no-backup')) {
             $backup = $this->getApplication()->find('backup');
@@ -674,10 +680,34 @@ class BuildCommand extends BaseCommand
         if (is_array($primaryKey)) {
             $primary = array();
             foreach ($primaryKey as $pkVal) {
+                if ($pkVal === 'id' && isset($data[$pkVal])) {
+                    if ($this->mapper->isUuid($data[$pkVal])) {
+                        $primary[$pkVal] = $this->mapper->getId($data[$pkVal]);
+                        continue;
+                    } else {
+                        $this->mapper->addMapping(Uuid::v4()->toRfc4122(), $class, $data[$pkVal]);
+                    }
+                }
                 $primary[$pkVal] = isset($data[$pkVal]) ? $data[$pkVal] : $this->_getDefaultForField($class, $pkVal);
             }
         } else {
             $primary = $data[$primaryKey];
+            if ($primaryKey === 'id') {
+                if ($this->mapper->isUuid($primary)) {
+                    try {
+                        $primary = $this->mapper->getId($primary);
+                    } catch (\Exception $e) {
+                        throw $e;
+                        // Possibiliities
+                        //   1. Exists here with a different UUID
+                        //   2. Does not exist here
+                        //   3. Exists here and hasn't been dumped via Gitify yet (so no UUID)
+                        // Do nothing???
+                    }
+                } else {
+                    $this->mapper->addMapping(Uuid::v4()->toRfc4122(), $class, $primary);
+                }
+            }
         }
         return $primary;
     }

@@ -3,6 +3,7 @@ namespace modmore\Gitify\Command;
 
 use modmore\Gitify\BaseCommand;
 use modmore\Gitify\Gitify;
+use modmore\Gitify\UuidToObjectMapper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -20,6 +21,8 @@ class ExtractCommand extends BaseCommand
 
     protected $_useResource = null;
     protected $_resource = false;
+    /** @var UuidToObjectMapper */
+    protected $mapper;
 
     protected function configure()
     {
@@ -33,6 +36,7 @@ class ExtractCommand extends BaseCommand
                 'Specify the data partition key (folder name), or keys separated by a space, that you want to extract. '
             )
         ;
+        $this->mapper = new UuidToObjectMapper();
     }
 
     /**
@@ -298,6 +302,10 @@ class ExtractCommand extends BaseCommand
             )
             {
                 unset($data[$key]);
+            }
+
+            if ($key === 'id') {
+                $data[$key] = $this->mapper->getUuid($options['class'], $value);
             }
         }
 
