@@ -23,10 +23,15 @@ class UuidToObjectMapper
             return $uuid;
         }
 
-        $newId = Uuid::v4()->toRfc4122();
+        $newId = $this->newUuid();
         $this->map[$newId] = ['class' => $class, 'id' => $id];
         $this->writeMap();
         return $newId;
+    }
+
+    private function newUuid(): string
+    {
+        return Uuid::v4()->toRfc4122();
     }
 
     function getId(string $uuid): string
@@ -55,7 +60,7 @@ class UuidToObjectMapper
         return Uuid::isValid($string);
     }
 
-    function addMapping($uuid, $class, $id)
+    function addMapping($uuid, $class, $id): void
     {
         if (array_key_exists($uuid, $this->map)) {
             throw new \Exception("UUID $uuid already exists");
@@ -69,8 +74,13 @@ class UuidToObjectMapper
         $this->writeMap();
     }
 
-    private function writeMap()
+    function addMappingAndCreateUuid($class, $id): void
     {
-        file_put_contents($this->file, json_encode($this->map));
+        $this->addMapping($this->newUuid(), $class, $id);
+    }
+
+    private function writeMap(): void
+    {
+        file_put_contents($this->file, \json_encode($this->map, JSON_PRETTY_PRINT));
     }
 }

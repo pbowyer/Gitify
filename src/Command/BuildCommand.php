@@ -452,6 +452,8 @@ class BuildCommand extends BaseCommand
         $primaryKey = !empty($type['primary']) ? $type['primary'] : 'id';
         $class = $type['class'];
 
+        $data = $this->remapIdFromUuid($class, $data);
+
         $primary = $this->_getPrimaryKey($class, $primaryKey, $data);
         $showPrimary = (is_array($primary)) ? json_encode($primary) : $primary;
 
@@ -680,36 +682,32 @@ class BuildCommand extends BaseCommand
         if (is_array($primaryKey)) {
             $primary = array();
             foreach ($primaryKey as $pkVal) {
-                if ($pkVal === 'id' && isset($data[$pkVal])) {
-                    if ($this->mapper->isUuid($data[$pkVal])) {
-                        $primary[$pkVal] = $this->mapper->getId($data[$pkVal]);
-                        continue;
-                    } else {
-                        $this->mapper->addMapping(Uuid::v4()->toRfc4122(), $class, $data[$pkVal]);
-                    }
-                }
                 $primary[$pkVal] = isset($data[$pkVal]) ? $data[$pkVal] : $this->_getDefaultForField($class, $pkVal);
             }
         } else {
             $primary = $data[$primaryKey];
-            if ($primaryKey === 'id') {
-                if ($this->mapper->isUuid($primary)) {
-                    try {
-                        $primary = $this->mapper->getId($primary);
-                    } catch (\Exception $e) {
-                        throw $e;
-                        // Possibiliities
-                        //   1. Exists here with a different UUID
-                        //   2. Does not exist here
-                        //   3. Exists here and hasn't been dumped via Gitify yet (so no UUID)
-                        // Do nothing???
-                    }
-                } else {
-                    $this->mapper->addMapping(Uuid::v4()->toRfc4122(), $class, $primary);
-                }
-            }
         }
         return $primary;
+    }
+
+    protected function remapIdFromUuid($class, $data)
+    {
+        if (!isset($data['id'])) {
+            return $data;
+        }
+
+        if ($this->mapper->isUuid($data['id'])) {
+            try {
+                $data['id'] = $this->mapper->getId($data['id']);
+            } catch (\Exception $e) {
+                $data['id'] = null;
+                //throw $e;
+            }
+        } else {
+            $this->mapper->addMappingAndCreateUuid($class, $data['id']);
+        }
+
+        return $data;
     }
 
     /**
